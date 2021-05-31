@@ -41,34 +41,35 @@ def butter_lowpass_filter(data, cutOff, fs, order=4):
     return y
 
 def remove_sidesignals(sr, wav, freqency=None, bandwidth=50):
-    if freqency is None:
+    if freqency is None or freqency == 0:
         yf = np.abs(fft(wav))
         xf = np.abs(fftfreq(len(wav), 1 / sr))
         poi = xf[np.argmax(yf)]
     else:
         poi = freqency
 
+    print(f"Frequency: {poi}")
+
     wav = butter_bandpass_filter(wav, poi-bandwidth/2, poi+bandwidth/2, sr, 6)
 
     return wav
 
-def get_high(wav, threshold, sr):    
+def get_high(wav, sr, threshold=0.03):    
     wav = np.abs(wav)
     # wav = butter_lowpass_filter(wav, threshold, sr, order=4)*(10**18)
     y = []
     avl = []
     tmp = 0
 
-    plt.plot(wav)
-    plt.show()
-
     taps = firwin(100,80/(sr*0.5),window="blackmanharris", nyq=sr*0.5)
     wav = lfilter(taps, 1.0, wav)
+
     plt.plot(wav)
     plt.show()
+    
     for x in range(len(wav)):
         # print(wav[x])
-        if wav[x] > 0.03:
+        if wav[x] > threshold:
             y.append(1.)
             tmp += 1
         else:
@@ -88,28 +89,30 @@ def get_period(l):
     avl = 0
     lshort = 1800
 
-    for x in l:
-        avl += x[0]
-    
-    avl = round(avl / len(l))
+    if len(l) > 0:
 
-    for x in range(len(l)):
-        if l[x][0] <= avl-1000:
-            lshort = l[x][0]*2
-            tmp.append(0)
-        else:
-            tmp.append(1)
+        for x in l:
+            avl += x[0]
     
-        if len(l) > x+1:
-            if l[x+1][1] - l[x][1] >= lshort*1 + l[x+1][0]:
-                y.append(tmp) # TODO: 3 points for word; 2 point for letter
-                tmp = []
-            
-            if l[x+1][1] - l[x][1] >= lshort*2 + l[x+1][0]:
-                y.append(' ')
-    
-    if len(tmp) > 0:
-        y.append(tmp)
+        avl = round(avl / len(l))
+
+        for x in range(len(l)):
+            if l[x][0] <= avl-1000:
+                lshort = l[x][0]*2
+                tmp.append(0)
+            else:
+                tmp.append(1)
+        
+            if len(l) > x+1:
+                if l[x+1][1] - l[x][1] >= lshort*1 + l[x+1][0]:
+                    y.append(tmp)
+                    tmp = []
+                
+                if l[x+1][1] - l[x][1] >= lshort*2 + l[x+1][0]:
+                    y.append(' ')
+        
+        if len(tmp) > 0:
+            y.append(tmp)
 
     return y
 
@@ -119,8 +122,8 @@ def get_period(l):
 
 
 inp, samplerate = load_file("input/01.wav")
-out = remove_sidesignals(samplerate, inp)
-length = get_high(out, 20, samplerate)
+out = remove_sidesignals(samplerate, inp, freqency=0, bandwidth=50)
+length = get_high(out, samplerate)
 out = get_period(length)
 out = mtt.convert(out)
 # print(out)
